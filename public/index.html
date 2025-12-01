@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>🚀 超级任务大冒险 (云同步版)</title>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        :root { --bg-color: #1a1a2e; --panel-color: #16213e; --accent-blue: #0f3460; --neon-blue: #00fff5; --neon-pink: #e94560; --neon-yellow: #ffd700; --text-main: #ffffff; --text-sub: #a0a0a0; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg-color); color: var(--text-main); margin: 0; padding: 0; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+        
+        /* 布局 */
+        .game-container { display: flex; flex: 1; height: 100%; padding: 20px; gap: 20px; }
+        .sidebar { width: 300px; background: var(--panel-color); border-radius: 20px; padding: 20px; display: flex; flex-direction: column; gap: 20px; box-shadow: 0 0 20px rgba(0, 0, 0, 0.5); border: 2px solid #2a2a40; flex-shrink: 0; }
+        .main-stage { flex: 1; background: var(--panel-color); border-radius: 20px; padding: 20px; box-shadow: 0 0 20px rgba(0, 0, 0, 0.5); border: 2px solid #2a2a40; display: flex; flex-direction: column; position: relative; overflow: hidden; }
+        @media (max-width: 768px) { .game-container { flex-direction: column; padding: 10px; gap: 10px; overflow-y: auto; } .sidebar { width: 100%; height: auto; flex-shrink: 0; } .main-stage { width: 100%; height: 500px; flex-shrink: 0; } body { overflow: auto; height: auto; } }
+
+        /* 左侧组件 */
+        .score-card { background: linear-gradient(135deg, #0f3460, #1a1a2e); border-radius: 15px; padding: 20px; text-align: center; border: 1px solid var(--neon-blue); box-shadow: 0 0 10px rgba(0, 255, 245, 0.2); position: relative; }
+        .score-title { font-size: 0.9em; color: var(--neon-blue); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 5px; }
+        .score-val-box { display: flex; justify-content: center; align-items: center; gap: 10px; }
+        .score-val { font-size: 3.5em; font-weight: bold; color: var(--neon-yellow); text-shadow: 0 0 10px rgba(255, 215, 0, 0.5); }
+        .score-icon { font-size: 2em; animation: float 3s ease-in-out infinite; }
+        
+        /* 导航 */
+        .nav-menu { display: flex; flex-direction: column; gap: 10px; }
+        .nav-btn { background: rgba(255,255,255,0.05); border: 1px solid transparent; color: var(--text-sub); padding: 15px; border-radius: 12px; cursor: pointer; font-weight: bold; display: flex; align-items: center; gap: 10px; transition: all 0.3s; font-size: 1.1em; }
+        .nav-btn:hover { background: rgba(255,255,255,0.1); color: white; }
+        .nav-btn.active { background: linear-gradient(90deg, rgba(0, 255, 245, 0.2), transparent); border-left: 4px solid var(--neon-blue); color: var(--neon-blue); text-shadow: 0 0 8px var(--neon-blue); }
+        .nav-btn.active.shop-mode { background: linear-gradient(90deg, rgba(233, 69, 96, 0.2), transparent); border-left-color: var(--neon-pink); color: var(--neon-pink); text-shadow: 0 0 8px var(--neon-pink); }
+
+        /* 日历 */
+        .calendar-widget { flex: 1; background: rgba(0,0,0,0.2); border-radius: 15px; padding: 15px; overflow-y: auto; }
+        .cal-header { font-size: 0.9em; color: var(--text-sub); margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.05); padding: 5px 10px; border-radius: 8px; }
+        .cal-nav-btn { cursor: pointer; padding: 0 8px; color: var(--neon-blue); font-weight: bold; user-select: none; }
+        .cal-nav-btn:hover { color: white; }
+        .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; text-align: center; }
+        .cal-cell { aspect-ratio: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; font-size: 0.8em; border-radius: 6px; background: rgba(255,255,255,0.05); color: #666; }
+        .cal-cell.today { border: 1px solid var(--neon-blue); color: white; }
+        .cal-cell.has-stars { background: rgba(255, 215, 0, 0.2); color: var(--neon-yellow); cursor: pointer; font-weight: bold; box-shadow: 0 0 5px rgba(255,215,0,0.2); }
+
+        /* 右侧内容 */
+        .stage-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid rgba(255,255,255,0.05); padding-bottom: 10px; }
+        .stage-title { font-size: 1.5em; font-weight: bold; color: white; display: flex; align-items: center; gap: 10px; }
+        .edit-toggle { background: transparent; border: 1px solid var(--text-sub); color: var(--text-sub); padding: 5px 15px; border-radius: 20px; cursor: pointer; transition: 0.3s; }
+        .edit-toggle:hover { border-color: white; color: white; }
+        .edit-toggle.active { background: var(--neon-pink); border-color: var(--neon-pink); color: white; box-shadow: 0 0 10px var(--neon-pink); }
+        .item-container { flex: 1; overflow-y: auto; padding-right: 5px; }
+        .item-container::-webkit-scrollbar { width: 6px; }
+        .item-container::-webkit-scrollbar-track { background: transparent; }
+        .item-container::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
+
+        /* 卡片 */
+        .grid-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 20px; }
+        .game-card { background: rgba(255,255,255,0.05); border-radius: 15px; padding: 20px; text-align: center; cursor: pointer; transition: all 0.2s; position: relative; border: 1px solid transparent; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        
+        .task-card:hover { transform: translateY(-5px); background: rgba(0, 255, 245, 0.1); border-color: var(--neon-blue); box-shadow: 0 0 15px rgba(0, 255, 245, 0.3); }
+        .task-card .icon { font-size: 3.5em; margin-bottom: 10px; filter: drop-shadow(0 0 5px rgba(255,255,255,0.5)); }
+        .task-card .name { font-weight: bold; margin-bottom: 5px; }
+        .task-card .val { background: var(--neon-blue); color: #000; padding: 3px 10px; border-radius: 10px; font-weight: bold; font-size: 0.8em; }
+
+        .shop-card:hover { transform: translateY(-5px); background: rgba(233, 69, 96, 0.1); border-color: var(--neon-pink); box-shadow: 0 0 15px rgba(233, 69, 96, 0.3); }
+        .shop-card .icon { font-size: 3.5em; margin-bottom: 10px; }
+        .shop-card .val { background: var(--neon-pink); color: white; padding: 3px 10px; border-radius: 10px; font-weight: bold; font-size: 0.8em; }
+        .shop-card.disabled { opacity: 0.4; filter: grayscale(1); cursor: not-allowed; }
+
+        .del-badge { position: absolute; top: -10px; right: -10px; background: var(--neon-pink); color: white; width: 25px; height: 25px; border-radius: 50%; line-height: 25px; font-weight: bold; display: none; box-shadow: 0 0 5px var(--neon-pink); z-index: 10; }
+        .editing .del-badge { display: block; }
+        .editing .game-card { animation: shake 0.3s ease-in-out infinite; }
+
+        /* 表单与弹窗 */
+        .add-panel { background: rgba(0,0,0,0.3); padding: 15px; border-radius: 12px; margin-top: 15px; display: none; border: 1px dashed var(--text-sub); }
+        .form-row { display: flex; gap: 10px; margin-bottom: 10px; }
+        .input-box { flex: 1; padding: 12px; background: rgba(0,0,0,0.5); border: 1px solid #444; border-radius: 8px; color: white; }
+        .action-btn { width: 100%; background: var(--neon-blue); color: black; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        .action-btn.shop { background: var(--neon-pink); color: white; }
+
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 100; backdrop-filter: blur(5px); justify-content: center; align-items: center; }
+        .modal-content { background: var(--panel-color); border: 1px solid var(--text-sub); width: 90%; max-width: 500px; max-height: 80vh; overflow-y: auto; border-radius: 20px; padding: 25px; color: white; box-shadow: 0 0 30px rgba(0,0,0,0.8); }
+        .picker-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-top: 15px; }
+        .picker-item { font-size: 2em; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 8px; cursor: pointer; text-align: center; }
+        .picker-item:hover { background: rgba(255,255,255,0.2); }
+
+        @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-10px); } 100% { transform: translateY(0px); } }
+        @keyframes shake { 0% { transform: rotate(0deg); } 25% { transform: rotate(2deg); } 75% { transform: rotate(-2deg); } 100% { transform: rotate(0deg); } }
+        @keyframes pop { 0% { transform: scale(1); } 50% { transform: scale(1.5); color: #fff; } 100% { transform: scale(1); } }
+        .pop-anim { animation: pop 0.2s ease-out; }
+        .hidden { display: none !important; }
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; background: red; display: inline-block; margin-right: 5px; }
+        .online { background: #00ff00; box-shadow: 0 0 5px #00ff00; }
+    </style>
+</head>
+<body>
+
+    <div class="game-container">
+        <aside class="sidebar">
+            <div class="score-card">
+                <div class="score-title">当前能量值</div>
+                <div class="score-val-box">
+                    <div id="displayPoints" class="score-val">--</div>
+                    <div class="score-icon">⭐</div>
+                </div>
+                <div style="font-size:0.8em; margin-top:10px; color:#666;">
+                    <span id="statusIndicator" class="status-dot"></span><span id="statusText">连接中...</span>
+                </div>
+            </div>
+
+            <nav class="nav-menu">
+                <div class="nav-btn active" id="btn-tab-tasks" onclick="switchTab('tasks')">
+                    <span>🚀</span> 每日任务 (Mission)
+                </div>
+                <div class="nav-btn" id="btn-tab-shop" onclick="switchTab('shop')">
+                    <span>💎</span> 能量超市 (Shop)
+                </div>
+            </nav>
+
+            <div class="calendar-widget">
+                <div class="cal-header">
+                    <span class="cal-nav-btn" onclick="changeMonth(-1)">◀</span>
+                    <span id="monthStr">Loading...</span>
+                    <span class="cal-nav-btn" onclick="changeMonth(1)">▶</span>
+                </div>
+                <div class="cal-grid">
+                    <small>日</small><small>一</small><small>二</small><small>三</small><small>四</small><small>五</small><small>六</small>
+                </div>
+                <div id="calendarBody" class="cal-grid" style="margin-top:5px;"></div>
+            </div>
+        </aside>
+
+        <main class="main-stage">
+            
+            <div id="view-tasks" style="height:100%; display:flex; flex-direction:column;">
+                <div class="stage-header">
+                    <div class="stage-title"><span style="color:var(--neon-blue)">⚡</span> 待办任务</div>
+                    <button class="edit-toggle" id="btnEditTask" onclick="toggleEdit('task')">配置任务</button>
+                </div>
+                
+                <div class="item-container">
+                    <div id="taskList" class="grid-list"></div>
+                </div>
+
+                <div id="addTaskForm" class="add-panel">
+                    <div class="form-row">
+                        <input id="taskName" class="input-box" placeholder="任务名称 (如: 练钢琴)">
+                        <button id="taskIconBtn" class="input-box" style="flex:0.3; cursor:pointer;" onclick="openIconPicker('task')">🎹</button>
+                    </div>
+                    <div class="form-row">
+                        <input id="taskVal" type="number" class="input-box" placeholder="奖励星星">
+                        <button class="action-btn" onclick="addItem('task')">确认添加任务</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="view-shop" class="hidden" style="height:100%; display:flex; flex-direction:column;">
+                <div class="stage-header">
+                    <div class="stage-title"><span style="color:var(--neon-pink)">🎁</span> 兑换奖励</div>
+                    <button class="edit-toggle" id="btnEditShop" onclick="toggleEdit('shop')">配置商品</button>
+                </div>
+
+                <div class="item-container">
+                    <div id="shopList" class="grid-list"></div>
+                </div>
+
+                <div id="addShopForm" class="add-panel" style="border-color: var(--neon-pink);">
+                    <div class="form-row">
+                        <input id="shopName" class="input-box" placeholder="奖品名称 (如: 乐高)">
+                        <button id="shopIconBtn" class="input-box" style="flex:0.3; cursor:pointer;" onclick="openIconPicker('shop')">🧱</button>
+                    </div>
+                    <div class="form-row">
+                        <input id="shopVal" type="number" class="input-box" placeholder="兑换价格">
+                        <button class="action-btn shop" onclick="addItem('shop')">确认上架商品</button>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <div id="iconPickerModal" class="modal-overlay" onclick="closeIconPicker(event)">
+        <div class="modal-content">
+            <h3>🎨 选择图标</h3>
+            <div id="pickerGrid" class="picker-grid"></div>
+            <button class="action-btn" style="background:#333; color:white; margin-top:20px;" onclick="closeIconPicker(null)">取消</button>
+        </div>
+    </div>
+    
+    <div id="settingsModal" class="modal-overlay" onclick="closeSettings(event)">
+        <div class="modal-content">
+            <h3>⚙️ 系统设置</h3>
+            <p>数据已连接至云端数据库 (Vercel KV)。</p>
+            <div style="margin-top:20px;">
+                <button class="action-btn" style="background:var(--neon-pink); color:white;" onclick="resetData()">💀 重置所有数据</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. 云端同步核心 ---
+        const API_URL = '/api/data';
+        let appData = { points: 0, tasks: [], shop: [], logs: [] };
+
+        // 状态指示灯
+        function setStatus(online) {
+            const dot = document.getElementById('statusIndicator');
+            const text = document.getElementById('statusText');
+            if(online) {
+                dot.classList.add('online');
+                text.innerText = "云端已同步";
+                text.style.color = "#00ff00";
+            } else {
+                dot.classList.remove('online');
+                text.innerText = "连接断开/同步中...";
+                text.style.color = "#666";
+            }
+        }
+
+        async function loadFromServer() {
+            try {
+                const res = await fetch(API_URL);
+                if (res.ok) {
+                    appData = await res.json();
+                    if(!appData.tasks) appData.tasks = [];
+                    if(!appData.shop) appData.shop = [];
+                    renderAll();
+                    setStatus(true);
+                } else {
+                    setStatus(false);
+                }
+            } catch (e) {
+                console.error(e);
+                setStatus(false);
+            }
+        }
+
+        async function saveToServer() {
+            setStatus(false); // 保存中
+            renderAll(); // 先更新UI
+            try {
+                await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(appData)
+                });
+                setStatus(true);
+            } catch (e) {
+                alert("保存失败，请检查网络");
+                setStatus(false);
+            }
+        }
+
+        // 自动同步：每5秒拉取一次
+        function startAutoSync() {
+            setInterval(loadFromServer, 5000);
+        }
+
+        // --- 2. 游戏逻辑 ---
+        
+        const icons = ["🎮","👾","🕹️","🎲","🚀","🛸","🌌","⭐","🔥","⚡","⚽","🏀","🛹","🚲","🏎️","🏆","🥇","🎨","🎹","🎧","🍔","🍟","🍕","🍦","🍭","🥤","🎒","📚","✏️","🧸","👕","👟","🕶️","🏠","🛌","🚿","🧹","🧺","🐕","🐈"];
+        let editingMode = { task: false, shop: false };
+        let currentIconTarget = null;
+        let selectedIcon = { task: "⚡", shop: "🎁" };
+        let viewDate = new Date();
+
+        function init() {
+            loadFromServer();
+            startAutoSync();
+        }
+
+        // 音效
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const audioCtx = new AudioContext();
+        function playSound(type) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const now = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            if (type === 'success') {
+                osc.type = 'sine'; osc.frequency.setValueAtTime(523.25, now); osc.frequency.exponentialRampToValueAtTime(1046.5, now + 0.1);
+                gain.gain.setValueAtTime(0.1, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+            } else {
+                osc.type = 'square'; osc.frequency.setValueAtTime(400, now); osc.frequency.linearRampToValueAtTime(600, now + 0.1);
+                gain.gain.setValueAtTime(0.1, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+            }
+            osc.connect(gain); gain.connect(audioCtx.destination); osc.start(now); osc.stop(now + 0.4);
+        }
+
+        function triggerConfetti() {
+            confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#00fff5', '#e94560', '#ffd700'] });
+        }
+
+        // 渲染
+        function renderAll() { updateScore(); renderGrid('task'); renderGrid('shop'); renderCalendar(); }
+        function updateScore() { 
+            const el = document.getElementById('displayPoints');
+            el.innerText = appData.points;
+            el.classList.remove('pop-anim'); void el.offsetWidth; el.classList.add('pop-anim');
+        }
+
+        function renderGrid(type) {
+            const container = document.getElementById(type === 'task' ? 'taskList' : 'shopList');
+            const list = type === 'task' ? appData.tasks : appData.shop;
+            container.innerHTML = '';
+            container.className = editingMode[type] ? 'grid-list editing' : 'grid-list';
+
+            list.forEach(item => {
+                const card = document.createElement('div');
+                card.className = `game-card ${type}-card`;
+                if(type === 'shop' && !editingMode.shop && appData.points < item.val) {
+                    card.classList.add('disabled');
+                }
+                card.onclick = () => handleCardClick(type, item);
+                card.innerHTML = `
+                    <div class="del-badge">×</div>
+                    <div class="icon">${item.icon}</div>
+                    <div class="name">${item.name}</div>
+                    <div class="val">${type==='task'?'+':'-'}${item.val}</div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function renderCalendar() {
+            const year = viewDate.getFullYear();
+            const month = viewDate.getMonth();
+            document.getElementById('monthStr').innerText = `${year}年${month+1}月`;
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const container = document.getElementById('calendarBody');
+            container.innerHTML = '';
+
+            const dailyMap = {};
+            if(appData.logs) appData.logs.forEach(l => {
+                if(l.type === 'earn') dailyMap[l.date] = (dailyMap[l.date] || 0) + l.val;
+            });
+
+            for(let i=0; i<firstDay; i++) container.appendChild(document.createElement('div'));
+            for(let d=1; d<=daysInMonth; d++) {
+                const dateKey = `${year}-${month+1}-${d}`;
+                const stars = dailyMap[dateKey] || 0;
+                const cell = document.createElement('div');
+                cell.className = `cal-cell ${stars>0 ? 'has-stars' : ''}`;
+                cell.innerHTML = `<span>${d}</span>${stars>0 ? `⭐${stars}` : ''}`;
+                if(stars>0) cell.onclick = () => alert(`${dateKey} 获得 ${stars} 能量！`);
+                container.appendChild(cell);
+            }
+        }
+        function changeMonth(offset) { viewDate.setMonth(viewDate.getMonth() + offset); renderCalendar(); }
+
+        // 交互
+        function handleCardClick(type, item) {
+            if(editingMode[type]) {
+                if(confirm(`删除 ${item.name}?`)) {
+                    if(type === 'task') appData.tasks = appData.tasks.filter(i => i.id !== item.id);
+                    else appData.shop = appData.shop.filter(i => i.id !== item.id);
+                    saveToServer();
+                }
+                return;
+            }
+            if(type === 'task') {
+                playSound('success'); triggerConfetti();
+                appData.points += parseInt(item.val);
+                logAction('earn', item.val, item.name);
+            } else {
+                if(appData.points < item.val) return alert("能量不足");
+                if(confirm(`消耗 ${item.val} 兑换?`)) {
+                    playSound('shop');
+                    appData.points -= parseInt(item.val);
+                    logAction('spend', item.val, item.name);
+                }
+            }
+            saveToServer();
+        }
+
+        function logAction(type, val, name) {
+            const now = new Date();
+            if(!appData.logs) appData.logs = [];
+            appData.logs.push({ date: `${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}`, type: type, val: parseInt(val), name: name });
+        }
+
+        // Tab 和 UI
+        function switchTab(tab) {
+            document.getElementById('view-tasks').classList.add('hidden');
+            document.getElementById('view-shop').classList.add('hidden');
+            document.getElementById('view-' + tab).classList.remove('hidden');
+            document.getElementById('btn-tab-tasks').classList.remove('active');
+            document.getElementById('btn-tab-shop').classList.remove('active', 'shop-mode');
+            const btn = document.getElementById('btn-tab-' + tab);
+            btn.classList.add('active');
+            if(tab === 'shop') btn.classList.add('shop-mode');
+        }
+
+        function toggleEdit(type) {
+            editingMode[type] = !editingMode[type];
+            const btn = document.getElementById(type==='task'?'btnEditTask':'btnEditShop');
+            const form = document.getElementById(type==='task'?'addTaskForm':'addShopForm');
+            if(editingMode[type]) { btn.innerText = "完成"; btn.classList.add('active'); form.style.display = 'block'; } 
+            else { btn.innerText = "配置"; btn.classList.remove('active'); form.style.display = 'none'; }
+            renderGrid(type);
+        }
+
+        function addItem(type) {
+            const nameEl = document.getElementById(type==='task'?'taskName':'shopName');
+            const valEl = document.getElementById(type==='task'?'taskVal':'shopVal');
+            if(!nameEl.value || !valEl.value) return;
+            const newItem = { id: Date.now(), name: nameEl.value, val: parseInt(valEl.value), icon: selectedIcon[type] };
+            if(type === 'task') appData.tasks.push(newItem); else appData.shop.push(newItem);
+            nameEl.value = ''; valEl.value = '';
+            saveToServer();
+        }
+
+        // 弹窗辅助
+        function openIconPicker(target) { currentIconTarget = target; document.getElementById('iconPickerModal').style.display = 'flex'; renderPicker(); }
+        function closeIconPicker(e) { if(!e || e.target.classList.contains('modal-overlay')) document.getElementById('iconPickerModal').style.display = 'none'; }
+        function renderPicker() {
+            const grid = document.getElementById('pickerGrid'); grid.innerHTML = '';
+            icons.forEach(icon => {
+                const div = document.createElement('div'); div.className = 'picker-item'; div.innerText = icon;
+                div.onclick = () => { selectedIcon[currentIconTarget] = icon; document.getElementById(currentIconTarget==='task'?'taskIconBtn':'shopIconBtn').innerText = icon; closeIconPicker(null); };
+                grid.appendChild(div);
+            });
+        }
+        function openSettings() { document.getElementById('settingsModal').style.display = 'flex'; }
+        function closeSettings(e) { if(!e || e.target.classList.contains('modal-overlay')) document.getElementById('settingsModal').style.display = 'none'; }
+        function resetData() { if(confirm("确定清空数据？")) { appData = {points:0,tasks:[],shop:[],logs:[]}; saveToServer(); } }
+
+        init();
+    </script>
+</body>
+</html>
