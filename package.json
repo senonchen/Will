@@ -1,7 +1,8 @@
 {
   "name": "star-reward-system",
   "version": "1.0.0",
+  "type": "module",
   "dependencies": {
-    "@vercel/kv": "^1.0.1"
+    "@upstash/redis": "^1.28.0"
   }
 }
